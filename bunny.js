@@ -7,12 +7,16 @@ var renderer         = null,
     bunny            = null,
     objLoader        = null,
     ambientLight     = null,
-    directionalLight = null;
+    directionalLight = null,
+    spotLight        = null,
+    pointLight       = null;
 
 var animator      = null,
     animate       = null,
     duration      = 10, // sec
     loopAnimation = true;
+
+var SHADOW_MAP_WIDTH = 2048, SHADOW_MAP_HEIGHT = 2048;
 
 function createScene(canvas) {    
     // Create the Three.js renderer and attach it to our canvas
@@ -21,35 +25,86 @@ function createScene(canvas) {
     // Set the viewport size
     renderer.setSize(window.innerWidth, window.innerHeight);
 
+    // Turn on shadows
+    renderer.shadowMap.enabled = true;
+
+    // Options are THREE.BasicShadowMap, THREE.PCFShadowMap, PCFSoftShadowMap
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
     // Create a new Three.js scene
     scene = new THREE.Scene();
 
-    scene.background = new THREE.Color( 0.2, 0.2, 0.2 );
-
     // Add  a camera so we can view the scene
-    camera = new THREE.PerspectiveCamera( 45, canvas.width / canvas.height, 1, 400 );
-    camera.position.set(0, 0, 5);
+    camera = new THREE.PerspectiveCamera( 45, canvas.width / canvas.height, 1, 4000 );
+    camera.position.set(-1, 10, 5);
     scene.add(camera);
 
-    // element that is included in the camera to indicate the point of focus where it will rotate
+    // Element that is included in the camera to indicate the point of focus where it will rotate
     orbitControls = new THREE.OrbitControls(camera, renderer.domElement); 
 
     // Create a group to hold all the objects
     root = new THREE.Object3D;
 
-    ambientLight = new THREE.AmbientLight ( 0xffffff);
-    root.add(ambientLight);
-
+    // Create and add all the lights
     // Add a directional light to show off the object
     directionalLight = new THREE.DirectionalLight( 0xffffff, 1);
-    // Create and add all the lights
-    directionalLight.position.set(0, 1, 2);
+    directionalLight.position.set(0, 1, 5);
     root.add(directionalLight);
+
+    // Add a spotlight emitted from a single point in one direction
+    spotLight = new THREE.SpotLight (0x000000);
+    spotLight.position.set(5, 8, 5);
+    spotLight.target.position.set(-1, 0, -1);
+    root.add(spotLight);
+    // Cast shadows
+    spotLight.castShadow = true;
+    spotLight.shadow.camera.near = 1;
+    spotLight.shadow.camera.far = 50;
+    spotLight.shadow.camera.fov = 100;
+    spotLight.shadow.mapSize.width = SHADOW_MAP_WIDTH;
+    spotLight.shadow.mapSize.height = SHADOW_MAP_HEIGHT;
+
+    // Add ambient light
+    ambientLight = new THREE.AmbientLight ( 0x000000);
+    root.add(ambientLight);
+
+    // Add a pointlight emitted from a single point in all directions
+    pointLight = new THREE.PointLight(0xffffff, 0.9, 0);
+    pointLight.position.set(5, 2, 5);
+    // Cast shadows
+    pointLight.castShadow = true;
+    pointLight.shadow.camera.near = 1;
+    pointLight.shadow.camera.far = 200;
+    pointLight.shadow.camera.fov = 85;
+    pointLight.shadow.mapSize.width = SHADOW_MAP_WIDTH;
+    pointLight.shadow.mapSize.height = SHADOW_MAP_HEIGHT;
+
+    var pointLightHelper = new THREE.PointLightHelper( pointLight, 1);
+    root.add(pointLight);
+    root.add(pointLightHelper);
 
     // Create a group to hold the objects
     bunnyGroup = new THREE.Object3D;
     root.add(bunnyGroup);
 
+    // Create a texture map
+    var map = new THREE.TextureLoader().load('images/grass_plane.png');
+    map.wrapS = map.wrapT = THREE.RepeatWrapping;
+    map.repeat.set(4, 4);
+    var color = 0xffffff;
+
+    // Put in a ground plane to show off the lighting
+    geometry = new THREE.PlaneGeometry(20, 20, 20, 20);
+    var mesh = new THREE.Mesh(geometry, new THREE.MeshPhongMaterial({color:color, map:map, side:THREE.DoubleSide}));
+    mesh.position.set(0, 0, 0);
+    mesh.rotation.x = -Math.PI / 2;
+    
+    // Add the mesh to our group
+    root.add( mesh );
+    mesh.castShadow = false;
+    mesh.receiveShadow = true;
+
+    // Load Bunnt
     loadObj();
     scene.add(root);
     
@@ -142,7 +197,6 @@ function loadObj(){
         function(object){
             var texture = new THREE.TextureLoader().load('Stanford_Bunny/UVmapping3072_g005c.jpg');
             var normalMap = new THREE.TextureLoader().load('Stanford_Bunny/UVmapping3072_TerraCotta_g001c.jpg');
-            // var specularMap = new THREE.TextureLoader().load('../models/cerberus/Cerberus_M.jpg');
 
             object.traverse( function ( child ) {
                 if ( child instanceof THREE.Mesh ) {
@@ -150,7 +204,6 @@ function loadObj(){
                     child.receiveShadow = true;
                     child.material.map = texture;
                     child.material.normalMap = normalMap;
-                    // child.material.specularMap = specularMap;
                 }
             });
                     
